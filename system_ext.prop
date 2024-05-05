@@ -1,0 +1,4 @@
+persist.vendor.dpm.feature=0
+persist.vendor.ssr.restart_module=adsp,modem,venus,ipa_fws,a702_zap
+persist.vendor.ssr.xtc_level=related
+ro.product.system_ext.innermodel=ND03

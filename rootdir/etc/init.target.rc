@@ -1,0 +1,279 @@
+# Copyright (c) 2018-2019,2021 The Linux Foundation. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above
+#       copyright notice, this list of conditions and the following
+#       disclaimer in the documentation and/or other materials provided
+#       with the distribution.
+#     * Neither the name of The Linux Foundation nor the names of its
+#       contributors may be used to endorse or promote products derived
+#       from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+# BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+# IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#
+
+import /vendor/etc/init/hw/init.qti.kernel.rc
+
+on early-init
+    exec u:r:vendor_modprobe:s0 -- /vendor/bin/modprobe -a -d /vendor/lib/modules q6_pdr_dlkm q6_notifier_dlkm snd_event_dlkm gpr_dlkm spf_core_dlkm audio_pkt_dlkm adsp_loader_dlkm audio_prm_dlkm wcd9xxx_dlkm pinctrl_lpi_dlkm swr_dlkm swr_ctrl_dlkm stub_dlkm wcd_core_dlkm bolero_cdc_dlkm va_macro_dlkm rx_macro_dlkm tx_macro_dlkm pmw5100-spmi_dlkm besbev_dlkm besbev-slave_dlkm wsa883x_dlkm awinic882xx_dlkm fs19xx_dlkm smartpa_dlkm machine_dlkm audpkt_ion_dlkm
+    write /proc/sys/kernel/sched_boost 1
+
+on init
+    write /dev/stune/foreground/schedtune.sched_boost_no_override 1
+    write /dev/stune/top-app/schedtune.sched_boost_no_override 1
+    write /dev/stune/schedtune.colocate 0
+    write /dev/stune/background/schedtune.colocate 0
+    write /dev/stune/system-background/schedtune.colocate 0
+    write /dev/stune/foreground/schedtune.colocate 0
+    write /dev/stune/top-app/schedtune.colocate 1
+    #Moving to init as this is needed for qseecomd
+    wait /dev/block/platform/soc/${ro.boot.bootdevice}
+    symlink /dev/block/platform/soc/${ro.boot.bootdevice} /dev/block/bootdevice
+    start vendor.qseecomd
+    start keymaster-4-0
+
+on early-fs
+    start vold
+
+on fs
+    start hwservicemanager
+    mount_all /vendor/etc/fstab.qcom --early
+    chown root system /mnt/vendor/persist
+    chmod 0771 /mnt/vendor/persist
+    restorecon_recursive /mnt/vendor/persist
+    mkdir /mnt/vendor/persist/data 0700 system system
+
+on post-fs
+    # set RLIMIT_MEMLOCK to 64MB
+    setrlimit 8 67108864 67108864
+
+on late-fs
+    wait_for_prop hwservicemanager.ready true
+    exec_start wait_for_keymaster
+    mount_all /vendor/etc/fstab.qcom --late
+
+on post-fs-data
+    mkdir /vendor/data/tombstones 0771 system system
+    mkdir /data/vendor/tloc 0700 system drmrpc
+
+on early-boot
+    start vendor.sensors
+
+on boot
+#USB controller configuration
+    setprop vendor.usb.rndis.func.name "gsi"
+    setprop vendor.usb.rmnet.func.name "gsi"
+    setprop vendor.usb.rmnet.inst.name "rmnet"
+    setprop vendor.usb.dpl.inst.name "dpl"
+    setprop vendor.usb.qdss.inst.name "qdss_mdm"
+    setprop vendor.usb.controller 4e00000.dwc3
+
+#Load WLAN driver
+    insmod /vendor/lib/modules/qca_cld3_wlan.ko
+
+    ## BRCM GPS
+    mkdir /data/vendor/gps 0777 gps system
+    mkdir /data/vendor/gps/mcudump 0777 gps system
+    chown gps system /data/vendor/gps
+    chown gps system /data/vendor/gps/mcudump
+    chown gps system /vendor/bin/gpsd
+    chown gps system /vendor/bin/lhd
+
+    chmod 0770 /dev/bbd_control
+    chown gps system /dev/bbd_control
+    chmod 0770 /dev/bbd_patch
+    chown gps system /dev/bbd_patch
+    chmod 0770 /dev/bbd_sensor
+    chown gps system /dev/bbd_sensor
+    chmod 0770 /dev/bbd_send
+    chown gps system /dev/bbd_send
+    chmod 0770 /dev/ttyBCM
+    chown gps system /dev/ttyBCM
+
+	#for mcu module driver nodes
+    chmod 0770 /dev/MODULE_GPS
+    chown gps system /dev/MODULE_GPS
+	chmod 0770 /dev/MODULE_SEN
+    chown gps system /dev/MODULE_SEN
+	chmod 0770 /dev/MODULE_SPH
+    chown gps system /dev/MODULE_SPH
+	chmod 0770 /dev/MODULE_SMT
+    chown gps system /dev/MODULE_SMT
+	chmod 0770 /dev/MODULE_TES
+    chown gps system /dev/MODULE_TES
+	chmod 0770 /dev/MODULE_UTI
+    chown gps system /dev/MODULE_UTI
+	chmod 0770 /dev/MODULE_FPD
+    chown gps system /dev/MODULE_FPD
+    chmod 0666 sys/bbd/pressure_measurement_flag
+    chmod 0666 sys/bbd/gps_test_config
+    chmod 0666 sys/bbd/wifimac
+    chmod 0666 sys/bbd/btmac
+	
+    chown gps system /sys/bus/spi/devices/spi1.0/nstandby
+    chmod 0666 /sys/bus/spi/devices/spi1.0/nstandby
+    chmod 0666 /dev/pn553
+    chown nfc nfc /dev/pn553
+    mkdir /data/vendor 0777 nfc nfc
+    mkdir /data/vendor/nfc 0777 nfc nfc
+    mkdir /data/vendor/nfc/param 0777 nfc nfc
+
+    # Haptics
+    chmod 0222 /sys/class/qcom-haptics/lra_calibration
+
+    # add sensor module driver nodes
+    chmod 0666 /sys/class/xtc/accel/accel/enable
+    chmod 0666 /sys/class/xtc/accel/accel/polling_rate
+    chmod 0666 /sys/class/xtc/gyro/gyro/enable
+    chmod 0666 /sys/class/xtc/gyro/gyro/polling_rate
+    chmod 0666 /sys/class/xtc/heart_rate/heart_rate/enable
+    chmod 0666 /sys/class/xtc/temp_other/temp_other/enable
+    chmod 0666 /sys/class/xtc/spo2/spo2/enable
+    chmod 0666 /sys/class/xtc/wear_status/wear_status/enable
+    chmod 0666 /sys/class/xtc/ppg/ppg/enable
+    chmod 0666 /sys/class/xtc/step_counter/step_counter/enable
+    chmod 0666 /sys/class/xtc/motion_state/motion_state/enable
+    chmod 0666 /sys/class/xtc/hand_wakeup/hand_wakeup/enable
+    chmod 0666 /sys/class/xtc/start_stop/start_stop/enable
+    chmod 0666 /sys/class/xtc/start_stop/start_stop/polling_rate
+    chmod 0666 /sys/class/xtc/calorie/calorie/enable
+    chmod 0666 /sys/class/xtc/exercise_duration/exercise_duration/enable
+    chmod 0666 /sys/class/xtc/motion_notify/motion_notify/enable
+    chmod 0666 /sys/class/xtc/high_cbt_notify/high_cbt_notify/enable
+    chmod 0666 /sys/class/xtc/rest_hr_notify/rest_hr_notify/enable
+    chmod 0666 /sys/class/xtc/rri/rri/enable
+    chmod 0666 /sys/class/xtc/modem_motion_detect/modem_motion_detect/enable
+    chmod 0666 /sys/class/xtc/magn/magn/enable
+    chmod 0666 /sys/class/xtc/magn/magn/polling_rate
+    chmod 0666 /sys/class/xtc/emotion/emotion/enable
+    chmod 0666 /sys/class/xtc/bad_wear_notify/bad_wear_notify/enable
+    chmod 0666 /sys/class/xtc/pressure/pressure/enable
+    chmod 0666 /sys/class/xtc/orientation/orientation/enable
+    chmod 0666 /sys/class/xtc/orientation/orientation/polling_rate
+    chmod 0666 /sys/class/xtc/rotation_vector/rotation_vector/enable
+    chmod 0666 /sys/class/xtc/rotation_vector/rotation_vector/polling_rate
+    chmod 0666 /sys/class/xtc/body_ambient_temp/body_ambient_temp/enable
+    chmod 0666 /sys/class/xtc/pressure_temp/pressure_temp/enable
+    chmod 0777 /sys/bus/iio/devices
+    chmod 0777 /dev/iio\:device0
+    chmod 0666 /sys/class/xtc/panel/xtc_panel_hbm
+
+on boot && property:persist.vendor.usb.controller.default=*
+    setprop vendor.usb.controller ${persist.vendor.usb.controller.default}
+
+on property:vendor.usb.controller=*
+    setprop sys.usb.controller ${vendor.usb.controller}
+
+on charger
+    setprop vendor.usb.controller 4e00000.dwc3
+    setprop sys.usb.configfs 1
+
+# Allow usb charging to be disabled peristently
+on property:sys.chgdisabled=1
+    write /sys/class/power_supply/battery/input_current_limit 1
+
+on property:sys.chgdisabled=0
+    write /sys/class/power_supply/battery/input_current_limit 0
+
+#pd-mapper
+service vendor.pd_mapper /vendor/bin/pd-mapper
+    class core
+    user system
+    group system
+
+#Peripheral manager
+service vendor.per_mgr /vendor/bin/pm-service
+    class core
+    user system
+    group system
+    ioprio rt 4
+
+service vendor.per_proxy /vendor/bin/pm-proxy
+    class core
+    user system
+    group system
+    disabled
+
+service vendor.mdm_helper /vendor/bin/mdm_helper
+    class core
+    group system wakelock
+    disabled
+
+service vendor.mdm_launcher /vendor/bin/sh /vendor/bin/init.mdm.sh
+    class core
+    oneshot
+
+service prd_init_gnss_config /system/bin/prod_cmd 38
+	class main
+    user root
+    oneshot
+    seclabel u:r:xtc_init:s0
+    
+service wcnss-service /system/vendor/bin/wcnss_service
+    class main
+    user system
+    group system wifi radio
+    oneshot
+
+on property:init.svc.vendor.per_mgr=running
+    start vendor.per_proxy
+
+on property:sys.shutdown.requested=*
+    stop vendor.per_proxy
+
+service vendor.tlocd /vendor/bin/tloc_daemon
+    class late_start
+    user system
+    group drmrpc gps net_raw
+
+on property:vold.decrypt=trigger_restart_framework
+   start vendor.cnss_diag
+
+service vendor.cnss_diag /system/vendor/bin/cnss_diag -q -f -t HELIUM
+   class main
+   user system
+   group system wifi inet sdcard_rw media_rw diag
+   oneshot
+
+# SensorHub (Location Hub)
+service lhd /vendor/bin/lhd /data/vendor/gps/lhd.conf
+    class late_start
+    user gps
+    group system inet net_raw sdcard_rw wakelock
+    ioprio rt 0
+
+# GPS
+service gpsd /vendor/bin/gpsd -c /data/vendor/gps/gpsconfig.xml
+    class late_start
+    user gps
+    socket gps seqpacket 0660 gps system
+    group system inet net_raw sdcard_rw wakelock
+    ioprio rt 0  
+
+# wifi location pressure measurement
+on property:sys.pressuremeasurement=0
+    write /sys/bbd/pressure_measurement_flag 0
+on property:sys.pressuremeasurement=1
+    write /sys/bbd/pressure_measurement_flag 1
+
+# Write, read Factory writes mac address
+on property:sys.wifimac=*
+    write /sys/bbd/wifimac ${sys.wifimac}
+
+on property:sys.btmac=*
+    write /sys/bbd/btmac ${sys.btmac}
