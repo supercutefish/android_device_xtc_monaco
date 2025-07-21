@@ -80,5 +80,3 @@ PRODUCT_COPY_FILES += \
 
 PRODUCT_SOONG_NAMESPACES += \
     $(LOCAL_PATH)
-
-$(call inherit-product, vendor/xtc/monaco_go/monaco_go-vendor.mk)
