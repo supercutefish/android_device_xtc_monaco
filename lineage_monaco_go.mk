@@ -3,6 +3,7 @@ $(call inherit-product, device/xtc/monaco_go/device.mk)
 PRODUCT_DEVICE := monaco_go
 PRODUCT_NAME := lineage_monaco_go
 PRODUCT_MANUFACTURER := xtc
+PRODUCT_BRAND := XTC
 
 PRODUCT_GMS_CLIENTID_BASE := android-xtc
 
